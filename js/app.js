@@ -38,10 +38,7 @@
   /* ---------- datos ---------- */
   const PALETTE = ['#d9480f', '#2756c5', '#7b2cbf', '#0b7a75', '#b5179e', '#8a6d00'];
   function defaults() { return { v: 2, notify: false, treatments: [] }; }
-  function migrate(st) { // quita las pastillas de ejemplo de la primera versión si nunca se usaron
-    if (st.treatments.length && st.treatments.every((t) => /^Pastilla (1|2|un día sí y un día no|diaria \(10 días\))$/.test(t.name) && !t.mg && !Object.keys(t.taken || {}).length)) st.treatments = [];
-    return st;
-  }
+  function migrate(st) { st.v = 2; return st; } // versión 1 -> 2: no se borra nada
   let state;
   function load() {
     try {
@@ -76,8 +73,9 @@
     const covered = pendFuture.slice(0, left);
     const isToday = doseDates(t, td, td).length > 0;
     let refill = null;
-    if (t.course) { if (pendFuture.length > left) refill = { missing: pendFuture.length - left }; }
-    else if (left <= 3) refill = { missing: null };
+    if (t.noStock) refill = null;
+    else if (t.course) { if (pendFuture.length > left) refill = { missing: pendFuture.length - left }; }
+    else if (left <= 3 && !t.noStock) refill = { missing: null };
     return {
       takenN, left, pendFuture, overdue, covered,
       lastCovered: covered.length ? covered[covered.length - 1] : null,
@@ -116,9 +114,9 @@
     const over = i.overdue.map((d) =>
       '<div class="warn"><span>No marcaste la pastilla del <strong>' + longDate(d) + '</strong>.</span> <button class="btn small" data-act="take" data-id="' + t.id + '" data-date="' + d + '">La tomé ese día</button></div>'
     ).join('') + (i.overdue.length ? '<p class="fine">Si olvidaste una dosis, pregunta a tu médico o farmacéutico qué hacer.</p>' : '');
-    let stock = '<div class="stock"><b>' + i.left + '</b><span>' + (i.left === 1 ? 'pastilla' : 'pastillas') + '<br>por tomar</span></div>';
+    let stock = t.noStock ? '<div class="stock"><b>—</b><span>sin conteo<br>de pastillas</span></div>' : '<div class="stock"><b>' + i.left + '</b><span>' + (i.left === 1 ? 'pastilla' : 'pastillas') + '<br>por tomar</span></div>';
     let lasts = '';
-    if (i.lastCovered && !i.finished) lasts = '<p class="meta">Te alcanzan hasta el <strong>' + longDate(i.lastCovered) + '</strong>.</p>';
+    if (i.lastCovered && !i.finished && !t.noStock) lasts = '<p class="meta">Te alcanzan hasta el <strong>' + longDate(i.lastCovered) + '</strong>.</p>';
     const prog = t.course ? '<p class="meta">Dosis tomadas: <strong>' + i.takenN + ' de ' + t.course + '</strong></p>' : '';
     const alert = i.refill && !i.finished ? '<div class="buy"><b>Comprar más</b><p>' + esc(refillText(t, i)) + '</p></div>' : '';
     return '<section class="card" style="--c:' + t.color + '"><div class="card-top"><div><h2>' + esc(label(t)) + '</h2><p class="meta">' + freq(t) + ' · <button class="btn link inline" data-act="edit" data-id="' + t.id + '">Editar nombre y mg</button></p>' + main + nextLine + lasts + prog + '</div>' + stock + '</div>' + action + over + alert + '</section>';
@@ -156,17 +154,18 @@
   }
   function field(t, f, label, type, extra) {
     let v = t[f]; if (v === null || v === undefined) v = '';
+    if (f === 'pills' && t.noStock) v = '';
     return '<label class="fld"><span>' + label + '</span><input type="' + type + '" data-f="' + f + '" data-id="' + t.id + '" value="' + esc(v) + '" ' + (extra || '') + '></label>';
   }
   function viewNew() {
     return '<header class="head"><h1>Agregar pastilla</h1><p class="fine">Llena estos datos. Después los puedes cambiar en Ajustes.</p></header>' +
       '<form id="newform" class="card" novalidate>' +
-      '<label class="fld"><span>Nombre de la pastilla</span><input name="name" type="text" maxlength="40" placeholder="Ejemplo: Amoxicilina" autocomplete="off"></label>' +
-      '<label class="fld"><span>Miligramos (mg)</span><input name="mg" type="text" inputmode="decimal" maxlength="10" placeholder="Ejemplo: 500" autocomplete="off"></label>' +
+      '<label class="fld"><span>Nombre de la pastilla (opcional)</span><input name="name" type="text" maxlength="40" placeholder="Ejemplo: Amoxicilina" autocomplete="off"></label>' +
+      '<label class="fld"><span>Miligramos, mg (opcional)</span><input name="mg" type="text" inputmode="decimal" maxlength="10" placeholder="Ejemplo: 500" autocomplete="off"></label>' +
       '<label class="fld"><span>¿Cada cuánto la tomas?</span><select name="every"><option value="1">Todos los días</option><option value="2">Un día sí y un día no</option><option value="3">Cada 3 días</option><option value="7">Una vez por semana</option><option value="otro">Otra frecuencia…</option></select></label>' +
       '<label class="fld" id="otroWrap" hidden><span>Escribe cada cuántos días la tomas</span><input name="otro" type="number" min="1" max="30" inputmode="numeric"></label>' +
-      '<label class="fld"><span>¿Cuántas pastillas tienes ahora?</span><input name="pills" type="number" min="1" max="999" inputmode="numeric" placeholder="Ejemplo: 10"></label>' +
-      '<label class="fld"><span>¿Cuántas veces en total la vas a tomar?</span><input name="course" type="number" min="1" max="400" inputmode="numeric" placeholder="Vacío si no tiene final"><small class="fine">Si es por 10 días y una cada día, escribe 10. Si no sabes cuándo termina, déjalo vacío.</small></label>' +
+      '<label class="fld"><span>¿Cuántas pastillas tienes ahora? (opcional)</span><input name="pills" type="number" min="1" max="999" inputmode="numeric" placeholder="Ejemplo: 10"><small class="fine">Si lo dejas vacío, no llevo el conteo ni te aviso cuándo comprar.</small></label>' +
+      '<label class="fld"><span>¿Cuántas veces en total la vas a tomar? (opcional)</span><input name="course" type="number" min="1" max="400" inputmode="numeric" placeholder="Vacío si no tiene final"><small class="fine">Si es por 10 días y una cada día, escribe 10. Si no sabes cuándo termina, déjalo vacío.</small></label>' +
       '<label class="fld"><span>¿Qué día empiezas?</span><input name="start" type="date" value="' + today() + '"></label>' +
       '<label class="fld"><span>¿A qué hora te aviso?</span><input name="time" type="time" value="20:00"></label>' +
       '<p class="error" id="formerr" role="alert"></p>' +
@@ -182,8 +181,8 @@
         '<div class="two">' + field(t, 'every', 'Se toma cada (días)', 'number', 'min="1" max="30" inputmode="numeric"') + field(t, 'time', 'Hora del aviso', 'time') + '</div>' +
         field(t, 'start', 'Primer día del tratamiento', 'date') +
         field(t, 'course', 'Termina después de (dosis). Vacío = sin final', 'number', 'min="1" max="400" inputmode="numeric"') +
-        field(t, 'pills', 'Pastillas compradas en total', 'number', 'min="0" max="999" inputmode="numeric"') +
-        '<p class="fine">Ahora te quedan <strong>' + i.left + '</strong>.</p>' +
+        field(t, 'pills', 'Pastillas compradas en total (vacío = no llevar conteo)', 'number', 'min="0" max="999" inputmode="numeric"') +
+        '<p class="fine">' + (t.noStock ? 'No llevas el conteo de pastillas.' : 'Ahora te quedan <strong>' + i.left + '</strong>.') + '</p>' +
         '<div class="refill"><label class="fld"><span>Compré más pastillas</span><input id="add-' + t.id + '" type="number" min="1" max="999" value="10" inputmode="numeric"></label><button class="btn small" data-act="refill" data-id="' + t.id + '">Agregar</button></div>' +
         '<button class="btn link danger" data-act="reset" data-id="' + t.id + '">Borrar lo marcado y empezar de nuevo</button>' +
         '<button class="btn link danger" data-act="remove" data-id="' + t.id + '">Quitar esta pastilla</button></section>';
@@ -223,7 +222,7 @@
     };
     state.treatments.forEach((t) => {
       const i = info(t, td);
-      i.covered.forEach((d) => ev('dosis-' + t.id + '-' + d, d, t.time, 15, '💊 ' + label(t), 'Toma tu pastilla y márcala en la app Mis pastillas.'));
+      (t.noStock ? i.pendFuture.filter((d) => d <= add(td, 30)) : i.covered).forEach((d) => ev('dosis-' + t.id + '-' + d, d, t.time, 15, '💊 ' + label(t), 'Toma tu pastilla y márcala en la app Mis pastillas.'));
       if (i.firstUncovered && (!t.course || i.refill)) { // aviso de recompra 3 días antes de la primera dosis sin pastilla
         let rd = add(i.firstUncovered, -3); if (rd < td) rd = td;
         ev('compra-' + t.id + '-' + i.firstUncovered, rd, '09:00', 30, '🛒 Comprar pastillas: ' + label(t),
@@ -314,17 +313,18 @@
     e.preventDefault();
     const f = e.target, g = (n) => f.elements.namedItem(n).value.trim();
     const err = (m) => { document.getElementById('formerr').textContent = m; };
-    const name = g('name'); if (!name) return err('Escribe el nombre de la pastilla.');
+    const name = g('name') || 'Pastilla ' + (state.treatments.length + 1);
     const every = g('every') === 'otro' ? Math.floor(Number(g('otro'))) : Number(g('every'));
     if (!(every >= 1 && every <= 30)) return err('Escribe cada cuántos días la tomas (de 1 a 30).');
-    const pills = Math.floor(Number(g('pills'))); if (!(pills >= 1)) return err('Escribe cuántas pastillas tienes.');
+    const noStock = g('pills') === '';
+    const pills = noStock ? 999 : Math.floor(Number(g('pills'))); if (!(pills >= 1)) return err('Revisa cuántas pastillas tienes.');
     const course = g('course') === '' ? null : Math.floor(Number(g('course')));
     if (course !== null && !(course >= 1)) return err('Revisa cuántas veces en total la vas a tomar.');
     const start = g('start'), time = g('time');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return err('Escribe el día en que empiezas.');
     if (!/^\d{2}:\d{2}$/.test(time)) return err('Escribe la hora del aviso.');
     state.treatments.push({ id: 't' + Date.now().toString(36), name: name, mg: g('mg').replace(',', '.').replace(/[^0-9.]/g, '').slice(0, 10),
-      color: PALETTE[state.treatments.length % PALETTE.length], every: every, start: start, time: time, pills: pills, course: course, taken: {} });
+      color: PALETTE[state.treatments.length % PALETTE.length], every: every, start: start, time: time, pills: pills, noStock: noStock, course: course, taken: {} });
     save(); tab = 'hoy'; render(); window.scrollTo(0, 0);
   });
   document.addEventListener('change', (e) => {
@@ -348,7 +348,7 @@
     const t = T(el.dataset.id), f = el.dataset.f;
     let v = el.value;
     if (f === 'every') { v = Math.min(30, Math.max(1, Math.floor(Number(v)) || 1)); }
-    else if (f === 'pills') { v = Math.max(0, Math.floor(Number(v)) || 0); }
+    else if (f === 'pills') { if (v === '') { t.noStock = true; v = 999; } else { t.noStock = false; v = Math.max(0, Math.floor(Number(v)) || 0); } }
     else if (f === 'course') { v = v === '' ? null : Math.max(1, Math.floor(Number(v)) || 1); }
     else if (f === 'start' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { return; }
     else if (f === 'time' && !/^\d{2}:\d{2}$/.test(v)) { return; }
