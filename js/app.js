@@ -114,6 +114,8 @@
     }
     const nextLine = (!i.finished && !(i.isToday && !i.todayTaken) && i.next)
       ? '<p class="meta">Próxima: <strong>' + longDate(i.next) + '</strong> · ' + time12(t.time) + '</p>' : '';
+    const tm = add(td, 1);
+    const tomorrow = i.finished ? '' : '<p class="meta">Mañana: <strong>' + (doseDates(t, tm, tm).length ? 'sí toca' : 'no toca') + '</strong></p>';
     const over = i.overdue.map((d) =>
       '<div class="warn"><span>No marcaste la pastilla del <strong>' + longDate(d) + '</strong>.</span> <button class="btn small" data-act="take" data-id="' + t.id + '" data-date="' + d + '">La tomé ese día</button></div>'
     ).join('') + (i.overdue.length ? '<p class="fine">Si olvidaste una dosis, pregunta a tu médico o farmacéutico qué hacer.</p>' : '');
@@ -122,7 +124,7 @@
     if (i.lastCovered && !i.finished && !t.noStock) lasts = '<p class="meta">Te alcanzan hasta el <strong>' + longDate(i.lastCovered) + '</strong>.</p>';
     const prog = t.course ? '<p class="meta">Dosis tomadas: <strong>' + i.takenN + ' de ' + t.course + '</strong></p>' : '';
     const alert = i.refill && !i.finished ? '<div class="buy"><b>Comprar más</b><p>' + esc(refillText(t, i)) + '</p></div>' : '';
-    return '<section class="card" style="--c:' + t.color + '"><div class="card-top"><div><h2>' + esc(label(t)) + '</h2><p class="meta">' + freq(t) + ' · <button class="btn link inline" data-act="edit" data-id="' + t.id + '">Editar nombre y mg</button></p>' + main + nextLine + lasts + prog + '</div>' + stock + '</div>' + action + over + alert + '</section>';
+    return '<section class="card" style="--c:' + t.color + '"><div class="card-top"><div><h2>' + esc(label(t)) + '</h2><p class="meta">' + freq(t) + ' · <button class="btn link inline" data-act="edit" data-id="' + t.id + '">Editar nombre y mg</button></p>' + main + tomorrow + nextLine + lasts + prog + '</div>' + stock + '</div>' + action + over + alert + '</section>';
   }
   function viewHoy() {
     const n = now(), td = ymd(n);
@@ -230,7 +232,7 @@
     };
     state.treatments.forEach((t) => {
       const i = info(t, td);
-      (t.noStock ? i.pendFuture.filter((d) => d <= add(td, 30)) : i.covered).forEach((d) => ev('dosis-' + t.id + '-' + d, d, t.time, 15, '💊 ' + label(t), 'Toma tu pastilla y márcala en la app Mis pastillas.'));
+      (t.course ? i.pendFuture : t.noStock ? i.pendFuture.filter((d) => d <= add(td, 30)) : i.covered).forEach((d) => ev('dosis-' + t.id + '-' + d, d, t.time, 15, '💊 ' + label(t), 'Toma tu pastilla y márcala en la app Mis pastillas.'));
       if (i.firstUncovered && (!t.course || i.refill)) { // aviso de recompra 3 días antes de la primera dosis sin pastilla
         let rd = add(i.firstUncovered, -3); if (rd < td) rd = td;
         ev('compra-' + t.id + '-' + i.firstUncovered, rd, '09:00', 30, '🛒 Comprar pastillas: ' + label(t),
