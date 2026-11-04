@@ -28,25 +28,25 @@
   const time12 = (t) => { const p = t.split(':').map(Number); return (p[0] % 12 || 12) + ':' + pad(p[1]) + ' ' + (p[0] >= 12 ? 'p. m.' : 'a. m.'); };
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const label = (t) => t.name + (t.mg ? ' ' + t.mg + ' mg' : '');
-  const freq = (t) => (Number(t.every) === 1 ? 'Una pastilla cada día' : 'Una pastilla cada ' + t.every + ' días') + (t.course ? ' · ' + t.course + ' dosis' : '');
+  const freq = (t) => {
+    const n = Number(t.every);
+    const f = n === 1 ? 'Todos los días' : n === 2 ? 'Un día sí y un día no' : n === 7 ? 'Una vez por semana' : 'Cada ' + n + ' días';
+    return f + (t.course ? ' · ' + t.course + ' veces en total' : '');
+  };
   const plural = (n, a, b) => n + ' ' + (n === 1 ? a : b);
 
   /* ---------- datos ---------- */
-  function defaults() {
-    const td = today();
-    return {
-      v: 1, notify: false, tab: 'hoy',
-      treatments: [
-        { id: 'a', name: 'Pastilla 1', mg: '', color: '#d9480f', every: 2, start: td, time: '20:00', pills: 10, course: null, taken: {} },
-        { id: 'b', name: 'Pastilla 2', mg: '', color: '#2756c5', every: 1, start: td, time: '20:00', pills: 10, course: 10, taken: {} }
-      ]
-    };
+  const PALETTE = ['#d9480f', '#2756c5', '#7b2cbf', '#0b7a75', '#b5179e', '#8a6d00'];
+  function defaults() { return { v: 2, notify: false, treatments: [] }; }
+  function migrate(st) { // quita las pastillas de ejemplo de la primera versión si nunca se usaron
+    if (st.treatments.length && st.treatments.every((t) => /^Pastilla (1|2|un día sí y un día no|diaria \(10 días\))$/.test(t.name) && !t.mg && !Object.keys(t.taken || {}).length)) st.treatments = [];
+    return st;
   }
   let state;
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) { const s = JSON.parse(raw); if (s && Array.isArray(s.treatments)) return s; }
+      if (raw) { const s = JSON.parse(raw); if (s && Array.isArray(s.treatments)) return migrate(s); }
     } catch (e) { /* sin almacenamiento: se usa la memoria */ }
     return defaults();
   }
@@ -130,11 +130,13 @@
         ? '<p class="fine">Avisos en esta pantalla: activados (suenan solo si la app está abierta). Para alarmas seguras usa el calendario del celular, en Ajustes.</p>'
         : '<button class="btn ghost" data-act="notif">Activar avisos en esta pantalla</button>')
       : '';
+    const empty = '<section class="card"><h2>Todavía no hay pastillas</h2><p>Toca el botón para agregar tu primera pastilla: su nombre, los miligramos y cada cuánto la tomas.</p><button class="btn primary" data-act="add">＋ Agregar pastilla</button></section>';
     return '<header class="head"><p class="kicker">Hoy es</p><h1>' + cap(longDate(td)) + '</h1></header>' +
-      state.treatments.map((t) => card(t, td, n)).join('') + notif;
+      (state.treatments.length ? state.treatments.map((t) => card(t, td, n)).join('') + '<button class="btn ghost" data-act="add">＋ Agregar otra pastilla</button>' + notif : empty);
   }
   function viewCal() {
     const td = today();
+    if (!state.treatments.length) return '<header class="head"><h1>Calendario</h1></header><section class="card"><p>Aquí verás los días que te toca cada pastilla. Primero agrega una en la pantalla <strong>Hoy</strong>.</p></section>';
     const infos = state.treatments.map((t) => ({ t: t, i: info(t, td) }));
     let rows = '';
     for (let k = -3; k <= 27; k++) {
@@ -156,6 +158,21 @@
     let v = t[f]; if (v === null || v === undefined) v = '';
     return '<label class="fld"><span>' + label + '</span><input type="' + type + '" data-f="' + f + '" data-id="' + t.id + '" value="' + esc(v) + '" ' + (extra || '') + '></label>';
   }
+  function viewNew() {
+    return '<header class="head"><h1>Agregar pastilla</h1><p class="fine">Llena estos datos. Después los puedes cambiar en Ajustes.</p></header>' +
+      '<form id="newform" class="card" novalidate>' +
+      '<label class="fld"><span>Nombre de la pastilla</span><input name="name" type="text" maxlength="40" placeholder="Ejemplo: Amoxicilina" autocomplete="off"></label>' +
+      '<label class="fld"><span>Miligramos (mg)</span><input name="mg" type="text" inputmode="decimal" maxlength="10" placeholder="Ejemplo: 500" autocomplete="off"></label>' +
+      '<label class="fld"><span>¿Cada cuánto la tomas?</span><select name="every"><option value="1">Todos los días</option><option value="2">Un día sí y un día no</option><option value="3">Cada 3 días</option><option value="7">Una vez por semana</option><option value="otro">Otra frecuencia…</option></select></label>' +
+      '<label class="fld" id="otroWrap" hidden><span>Escribe cada cuántos días la tomas</span><input name="otro" type="number" min="1" max="30" inputmode="numeric"></label>' +
+      '<label class="fld"><span>¿Cuántas pastillas tienes ahora?</span><input name="pills" type="number" min="1" max="999" inputmode="numeric" placeholder="Ejemplo: 10"></label>' +
+      '<label class="fld"><span>¿Cuántas veces en total la vas a tomar?</span><input name="course" type="number" min="1" max="400" inputmode="numeric" placeholder="Vacío si no tiene final"><small class="fine">Si es por 10 días y una cada día, escribe 10. Si no sabes cuándo termina, déjalo vacío.</small></label>' +
+      '<label class="fld"><span>¿Qué día empiezas?</span><input name="start" type="date" value="' + today() + '"></label>' +
+      '<label class="fld"><span>¿A qué hora te aviso?</span><input name="time" type="time" value="20:00"></label>' +
+      '<p class="error" id="formerr" role="alert"></p>' +
+      '<button class="btn primary" type="submit">Guardar pastilla</button>' +
+      '<button class="btn link" type="button" data-act="cancelNew">Cancelar</button></form>';
+  }
   function viewSet() {
     const forms = state.treatments.map((t) => {
       const i = info(t, today());
@@ -168,19 +185,21 @@
         field(t, 'pills', 'Pastillas compradas en total', 'number', 'min="0" max="999" inputmode="numeric"') +
         '<p class="fine">Ahora te quedan <strong>' + i.left + '</strong>.</p>' +
         '<div class="refill"><label class="fld"><span>Compré más pastillas</span><input id="add-' + t.id + '" type="number" min="1" max="999" value="10" inputmode="numeric"></label><button class="btn small" data-act="refill" data-id="' + t.id + '">Agregar</button></div>' +
-        '<button class="btn link danger" data-act="reset" data-id="' + t.id + '">Borrar lo marcado y empezar de nuevo</button></section>';
+        '<button class="btn link danger" data-act="reset" data-id="' + t.id + '">Borrar lo marcado y empezar de nuevo</button>' +
+        '<button class="btn link danger" data-act="remove" data-id="' + t.id + '">Quitar esta pastilla</button></section>';
     }).join('');
     return '<header class="head"><h1>Ajustes</h1></header>' +
       '<section class="card"><h2>Alarmas en el calendario del celular</h2>' +
       '<p>Es la forma más segura de que suene: el calendario del celular avisa aunque esta app esté cerrada.</p>' +
       '<ol class="steps"><li>Toca el botón de abajo para bajar el archivo.</li><li>Ábrelo y elige tu calendario para importarlo.</li><li>Si cambias la hora o compras más pastillas, vuelve a bajarlo e impórtalo otra vez: se actualizan los mismos eventos.</li></ol>' +
-      '<button class="btn primary" data-act="ics">Bajar calendario con alarmas</button></section>' +
+      (state.treatments.length ? '<button class="btn primary" data-act="ics">Bajar calendario con alarmas</button>' : '<p class="fine">Primero agrega una pastilla en la pantalla Hoy.</p>') + '</section>' +
       forms +
+      '<button class="btn ghost" data-act="add">＋ Agregar pastilla</button><div style="height:16px"></div>' +
       '<section class="card"><h2>Copia de seguridad</h2><p class="fine">Tus datos están solo en este dispositivo. Guarda una copia por si cambias de celular.</p><div class="row"><button class="btn" data-act="export">Guardar copia</button><label class="btn">Restaurar copia<input type="file" accept="application/json" data-act-change="import" hidden></label></div></section>';
   }
   function render() {
     const app = document.getElementById('app');
-    app.innerHTML = tab === 'hoy' ? viewHoy() : tab === 'cal' ? viewCal() : viewSet();
+    app.innerHTML = tab === 'hoy' ? viewHoy() : tab === 'cal' ? viewCal() : tab === 'nueva' ? viewNew() : viewSet();
     const items = [['hoy', 'Hoy', '◉'], ['cal', 'Calendario', '▦'], ['set', 'Ajustes', '⚙']];
     document.getElementById('nav').innerHTML = items.map((x) =>
       '<button data-act="tab" data-tab="' + x[0] + '"' + (tab === x[0] ? ' aria-current="page" class="on"' : '') + '><span aria-hidden="true">' + x[2] + '</span>' + x[1] + '</button>').join('');
@@ -251,6 +270,13 @@
   const T = (id) => state.treatments.find((t) => t.id === id);
   const actions = {
     tab(el) { tab = el.dataset.tab; render(); window.scrollTo(0, 0); },
+    add() { tab = 'nueva'; render(); window.scrollTo(0, 0); },
+    cancelNew() { tab = 'hoy'; render(); window.scrollTo(0, 0); },
+    remove(el) {
+      const t = T(el.dataset.id);
+      if (!confirm('¿Quitar "' + label(t) + '" de la app? Se borra también lo que marcaste.')) return;
+      state.treatments = state.treatments.filter((x) => x.id !== t.id); save(); tab = 'hoy'; render();
+    },
     edit(el) {
       tab = 'set'; render();
       const sec = document.getElementById('set-' + el.dataset.id);
@@ -282,7 +308,29 @@
     const el = e.target.closest('[data-act]');
     if (el && actions[el.dataset.act] && !el.disabled) actions[el.dataset.act](el);
   });
+  document.addEventListener('input', (e) => { const m = document.getElementById('formerr'); if (m && e.target.form && e.target.form.id === 'newform') m.textContent = ''; });
+  document.addEventListener('submit', (e) => {
+    if (e.target.id !== 'newform') return;
+    e.preventDefault();
+    const f = e.target, g = (n) => f.elements.namedItem(n).value.trim();
+    const err = (m) => { document.getElementById('formerr').textContent = m; };
+    const name = g('name'); if (!name) return err('Escribe el nombre de la pastilla.');
+    const every = g('every') === 'otro' ? Math.floor(Number(g('otro'))) : Number(g('every'));
+    if (!(every >= 1 && every <= 30)) return err('Escribe cada cuántos días la tomas (de 1 a 30).');
+    const pills = Math.floor(Number(g('pills'))); if (!(pills >= 1)) return err('Escribe cuántas pastillas tienes.');
+    const course = g('course') === '' ? null : Math.floor(Number(g('course')));
+    if (course !== null && !(course >= 1)) return err('Revisa cuántas veces en total la vas a tomar.');
+    const start = g('start'), time = g('time');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return err('Escribe el día en que empiezas.');
+    if (!/^\d{2}:\d{2}$/.test(time)) return err('Escribe la hora del aviso.');
+    state.treatments.push({ id: 't' + Date.now().toString(36), name: name, mg: g('mg').replace(',', '.').replace(/[^0-9.]/g, '').slice(0, 10),
+      color: PALETTE[state.treatments.length % PALETTE.length], every: every, start: start, time: time, pills: pills, course: course, taken: {} });
+    save(); tab = 'hoy'; render(); window.scrollTo(0, 0);
+  });
   document.addEventListener('change', (e) => {
+    if (e.target.name === 'every' && e.target.form && e.target.form.id === 'newform') {
+      document.getElementById('otroWrap').hidden = e.target.value !== 'otro'; return;
+    }
     const el = e.target;
     if (el.dataset.actChange === 'import') {
       const f = el.files && el.files[0]; if (!f) return;
