@@ -120,6 +120,7 @@
       '<div class="warn"><span>No marcaste la pastilla del <strong>' + longDate(d) + '</strong>.</span> <button class="btn small" data-act="take" data-id="' + t.id + '" data-date="' + d + '">La tomé ese día</button></div>'
     ).join('') + (i.overdue.length ? '<p class="fine">Si olvidaste una dosis, pregunta a tu médico o farmacéutico qué hacer.</p>' : '');
     let stock = t.noStock ? '<div class="stock"><b>—</b><span>sin conteo<br>de pastillas</span></div>' : '<div class="stock"><b>' + i.left + '</b><span>' + (i.left === 1 ? 'pastilla' : 'pastillas') + '<br>por tomar</span></div>';
+    if (t.how) stock = '<div class="side">' + stock + '<p class="how">' + esc(t.how) + '</p></div>';
     let lasts = '';
     if (i.lastCovered && !i.finished && !t.noStock) lasts = '<p class="meta">Te alcanzan hasta el <strong>' + longDate(i.lastCovered) + '</strong>.</p>';
     const prog = t.course ? '<p class="meta">Dosis tomadas: <strong>' + i.takenN + ' de ' + t.course + '</strong></p>' : '';
@@ -162,6 +163,8 @@
     if (f === 'pills' && t.noStock) v = '';
     return '<label class="fld"><span>' + label + '</span><input type="' + type + '" data-f="' + f + '" data-id="' + t.id + '" value="' + esc(v) + '" ' + (extra || '') + '></label>';
   }
+  const HOWS = [['','Sin indicar'],['En ayunas','En ayunas'],['Antes de comer','Antes de comer'],['Después de comer','Después de comer'],['Con la comida','Con la comida'],['Antes de dormir','Antes de dormir']];
+  const howOpts = (cur) => HOWS.map((h) => '<option value="' + h[0] + '"' + (h[0] === (cur || '') ? ' selected' : '') + '>' + h[1] + '</option>').join('');
   function viewNew() {
     return '<header class="head"><h1>Agregar pastilla</h1><p class="fine">Llena estos datos. Después los puedes cambiar en Ajustes.</p></header>' +
       '<form id="newform" class="card" novalidate>' +
@@ -171,6 +174,7 @@
       '<label class="fld"><span>¿Cada cuánto la tomas?</span><select name="every"><option value="1">Todos los días</option><option value="2">Un día sí y un día no</option><option value="3">Cada 3 días</option><option value="7">Una vez por semana</option><option value="otro">Otra frecuencia…</option></select></label>' +
       '<label class="fld" id="otroWrap" hidden><span>Escribe cada cuántos días la tomas</span><input name="otro" type="number" min="1" max="30" inputmode="numeric"></label>' +
       '<label class="fld"><span>¿Cuántas pastillas tienes ahora? (opcional)</span><input name="pills" type="number" min="1" max="999" inputmode="numeric" placeholder="Ejemplo: 10"><small class="fine">Si lo dejas vacío, no llevo el conteo ni te aviso cuándo comprar.</small></label>' +
+      '<label class="fld"><span>¿Cómo se toma? (opcional)</span><select name="how">' + howOpts('') + '</select></label>' +
       '<label class="fld"><span>¿Cuánto dura el tratamiento? (opcional)</span><div class="two"><input name="dur" type="number" min="1" max="60" inputmode="numeric" placeholder="Ejemplo: 5"><select name="unit"><option value="30">meses</option><option value="7">semanas</option><option value="1">días</option></select></div><small class="fine">Si el doctor dijo "por 5 meses", escribe 5 y elige meses. Si no sabes, déjalo vacío.</small></label>' +
       '<label class="fld"><span>¿Qué día empiezas?</span><input name="start" type="date" value="' + today() + '"></label>' +
       '<label class="fld"><span>¿A qué hora te aviso?</span><input name="time" type="time" value="20:00"></label>' +
@@ -188,6 +192,7 @@
         '<div class="two">' + field(t, 'every', 'Se toma cada (días)', 'number', 'min="1" max="30" inputmode="numeric"') + field(t, 'time', 'Hora del aviso', 'time') + '</div>' +
         field(t, 'start', 'Primer día del tratamiento', 'date') +
         field(t, 'course', 'Cuántas veces en total la vas a tomar (vacío = sin final)', 'number', 'min="1" max="400" inputmode="numeric"') +
+        '<label class="fld"><span>¿Cómo se toma? (opcional)</span><select data-f="how" data-id="' + t.id + '">' + howOpts(t.how) + '</select></label>' +
         field(t, 'pills', 'Pastillas compradas en total (vacío = no llevar conteo)', 'number', 'min="0" max="999" inputmode="numeric"') +
         '<p class="fine">' + (t.noStock ? 'No llevas el conteo de pastillas.' : 'Ahora te quedan <strong>' + i.left + '</strong>.') + '</p>' +
         '<div class="refill"><label class="fld"><span>Compré más pastillas</span><input id="add-' + t.id + '" type="number" min="1" max="999" value="10" inputmode="numeric"></label><button class="btn small" data-act="refill" data-id="' + t.id + '">Agregar</button></div>' +
@@ -340,7 +345,7 @@
     const start = g('start'), time = g('time');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return err('Escribe el día en que empiezas.');
     if (!/^\d{2}:\d{2}$/.test(time)) return err('Escribe la hora del aviso.');
-    state.treatments.push({ id: 't' + Date.now().toString(36), title: g('title'), name: name, mg: g('mg').replace(',', '.').replace(/[^0-9.]/g, '').slice(0, 10),
+    state.treatments.push({ id: 't' + Date.now().toString(36), title: g('title'), how: g('how'), name: name, mg: g('mg').replace(',', '.').replace(/[^0-9.]/g, '').slice(0, 10),
       color: PALETTE[state.treatments.length % PALETTE.length], every: every, start: start, time: time, pills: pills, noStock: noStock, course: course, taken: {} });
     save(); setDraft(null); tab = 'hoy'; render(); window.scrollTo(0, 0);
   });

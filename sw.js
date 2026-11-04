@@ -1,5 +1,5 @@
 /* Mis pastillas - funciona sin internet después de la primera visita */
-const CACHE = 'pastillas-v8';
+const CACHE = 'pastillas-v9';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'css/style.css', 'js/app.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
