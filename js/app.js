@@ -179,8 +179,9 @@
     if (f === 'pills' && t.noStock) v = '';
     return '<label class="fld"><span>' + label + '</span><input type="' + type + '" data-f="' + f + '" data-id="' + t.id + '" value="' + esc(v) + '" ' + (extra || '') + '></label>';
   }
-  const HOWS = [['','Sin indicar'],['En ayunas','En ayunas'],['Antes de comer','Antes de comer'],['Después de comer','Después de comer'],['Con la comida','Con la comida'],['Antes de dormir','Antes de dormir']];
+  const HOWS = [['','Sin indicar'],['En ayunas','En ayunas'],['Antes de comer','Antes de comer'],['Después de comer','Después de comer'],['Después del desayuno','Después del desayuno'],['Con la comida','Con la comida'],['Antes de dormir','Antes de dormir']];
   const howOpts = (cur) => HOWS.map((h) => '<option value="' + h[0] + '"' + (h[0] === (cur || '') ? ' selected' : '') + '>' + h[1] + '</option>').join('');
+  const howList = () => '<datalist id="how-list">' + HOWS.filter((h) => h[0]).map((h) => '<option value="' + h[0] + '"></option>').join('') + '</datalist>';
   function viewNew() {
     return '<header class="head"><h1>Agregar pastilla</h1><p class="fine">Llena estos datos. Después los puedes cambiar en Ajustes.</p></header>' +
       '<form id="newform" class="card" novalidate>' +
@@ -190,7 +191,7 @@
       '<label class="fld"><span>¿Cada cuánto la tomas?</span><select name="every"><option value="1">Todos los días</option><option value="2">Un día sí y un día no</option><option value="3">Cada 3 días</option><option value="7">Una vez por semana</option><option value="otro">Otra frecuencia…</option></select></label>' +
       '<label class="fld" id="otroWrap" hidden><span>Escribe cada cuántos días la tomas</span><input name="otro" type="number" min="1" max="30" inputmode="numeric"></label>' +
       '<label class="fld"><span>¿Cuántas pastillas tienes ahora? (opcional)</span><input name="pills" type="number" min="1" max="999" inputmode="numeric" placeholder="Ejemplo: 10"><small class="fine">Si lo dejas vacío, no llevo el conteo ni te aviso cuándo comprar.</small></label>' +
-      '<label class="fld"><span>¿Cómo se toma? (opcional)</span><select name="how">' + howOpts('') + '</select></label>' +
+      '<label class="fld"><span>¿Cómo se toma? (opcional)</span><input name="how" type="text" maxlength="40" list="how-list" placeholder="Toca y elige, o escribe lo tuyo" autocomplete="off">' + howList() + '<small class="fine">Ejemplo: después del desayuno. Puedes elegir una opción o escribir lo que quieras.</small></label>' +
       '<label class="fld"><span>¿Cuánto dura el tratamiento? (opcional)</span><div class="two"><input name="dur" type="number" min="1" max="60" inputmode="numeric" placeholder="Ejemplo: 5"><select name="unit"><option value="30">meses</option><option value="7">semanas</option><option value="1">días</option></select></div><small class="fine">Si el doctor dijo "por 5 meses", escribe 5 y elige meses. Si no sabes, déjalo vacío.</small></label>' +
       '<label class="fld"><span>¿Qué día empiezas?</span><input name="start" type="date" value="' + today() + '"></label>' +
       '<label class="fld"><span>¿Cuántas veces al día la tomas?</span><select name="perday"><option value="1">1 vez al día</option><option value="2">2 veces al día</option><option value="3">3 veces al día</option></select></label>' +
@@ -212,7 +213,7 @@
         timesOf(t).map((tm, ix) => '<label class="fld"><span>Hora de la toma' + (timesOf(t).length > 1 ? ' ' + (ix + 1) : '') + '</span><input type="time" data-f="tm' + ix + '" data-id="' + t.id + '" value="' + tm + '"></label>').join('') +
         field(t, 'start', 'Primer día del tratamiento', 'date') +
         field(t, 'course', 'Cuántos días te toca en total (vacío = sin final)', 'number', 'min="1" max="400" inputmode="numeric"') +
-        '<label class="fld"><span>¿Cómo se toma? (opcional)</span><select data-f="how" data-id="' + t.id + '">' + howOpts(t.how) + '</select></label>' +
+        '<label class="fld"><span>¿Cómo se toma? (opcional)</span><input type="text" maxlength="40" list="how-list" data-f="how" data-id="' + t.id + '" value="' + esc(t.how || '') + '" placeholder="Toca y elige, o escribe lo tuyo" autocomplete="off">' + howList() + '</label>' +
         field(t, 'pills', 'Pastillas compradas en total (vacío = no llevar conteo)', 'number', 'min="0" max="999" inputmode="numeric"') +
         '<p class="fine">' + (t.noStock ? 'No llevas el conteo de pastillas.' : 'Ahora te quedan <strong>' + i.left + '</strong>.') + '</p>' +
         '<div class="refill"><label class="fld"><span>Compré más pastillas</span><input id="add-' + t.id + '" type="number" min="1" max="999" value="10" inputmode="numeric"></label><button class="btn small" data-act="refill" data-id="' + t.id + '">Agregar</button></div>' +
@@ -375,7 +376,7 @@
     if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return err('Escribe el día en que empiezas.');
     if (!times.every((x) => /^\d{2}:\d{2}$/.test(x))) return err('Escribe la hora de cada toma.');
     times.sort();
-    state.treatments.push({ id: 't' + Date.now().toString(36), title: g('title'), how: g('how'), name: name, mg: g('mg').replace(',', '.').replace(/[^0-9.]/g, '').slice(0, 10),
+    state.treatments.push({ id: 't' + Date.now().toString(36), title: g('title'), how: g('how').slice(0, 40), name: name, mg: g('mg').replace(',', '.').replace(/[^0-9.]/g, '').slice(0, 10),
       color: PALETTE[state.treatments.length % PALETTE.length], every: every, start: start, time: times[0], times: times, pills: pills, noStock: noStock, course: course, taken: {} });
     save(); setDraft(null); tab = 'hoy'; render(); window.scrollTo(0, 0);
   });
@@ -414,6 +415,7 @@
     else if (f === 'course') { v = v === '' ? null : Math.max(1, Math.floor(Number(v)) || 1); }
     else if (f === 'start' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { return; }
     else if (f === 'time' && !/^\d{2}:\d{2}$/.test(v)) { return; }
+    else if (f === 'how') { v = v.trim().slice(0, 40); }
     else if (f === 'title') { v = v.trim().slice(0, 40); }
     else if (f === 'name') { v = v.trim() || t.name; }
     else if (f === 'mg') { v = v.trim().replace(',', '.').replace(/[^0-9.]/g, '').slice(0, 10); }
