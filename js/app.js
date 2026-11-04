@@ -124,7 +124,7 @@
     if (i.lastCovered && !i.finished && !t.noStock) lasts = '<p class="meta">Te alcanzan hasta el <strong>' + longDate(i.lastCovered) + '</strong>.</p>';
     const prog = t.course ? '<p class="meta">Dosis tomadas: <strong>' + i.takenN + ' de ' + t.course + '</strong></p>' : '';
     const alert = i.refill && !i.finished ? '<div class="buy"><b>Comprar más</b><p>' + esc(refillText(t, i)) + '</p></div>' : '';
-    return '<section class="card" style="--c:' + t.color + '"><div class="card-top"><div><h2>' + esc(label(t)) + '</h2><p class="meta">' + freq(t) + ' · <button class="btn link inline" data-act="edit" data-id="' + t.id + '">Editar nombre y mg</button></p>' + main + tomorrow + nextLine + lasts + prog + '</div>' + stock + '</div>' + action + over + alert + '</section>';
+    return '<section class="card" style="--c:' + t.color + '"><div class="card-top"><div>' + (t.title ? '<p class="ttl">' + esc(t.title) + '</p>' : '') + '<h2>' + esc(label(t)) + '</h2><p class="meta">' + freq(t) + ' · <button class="btn link inline" data-act="edit" data-id="' + t.id + '">Editar nombre y mg</button></p>' + main + tomorrow + nextLine + lasts + prog + '</div>' + stock + '</div>' + action + over + alert + '</section>';
   }
   function viewHoy() {
     const n = now(), td = ymd(n);
@@ -165,6 +165,7 @@
   function viewNew() {
     return '<header class="head"><h1>Agregar pastilla</h1><p class="fine">Llena estos datos. Después los puedes cambiar en Ajustes.</p></header>' +
       '<form id="newform" class="card" novalidate>' +
+      '<label class="fld"><span>Encabezado (opcional)</span><input name="title" type="text" maxlength="40" placeholder="Ejemplo: Tratamiento de la presión" autocomplete="off"></label>' +
       '<label class="fld"><span>Nombre de la pastilla (opcional)</span><input name="name" type="text" maxlength="40" placeholder="Ejemplo: Amoxicilina" autocomplete="off"></label>' +
       '<label class="fld"><span>Miligramos, mg (opcional)</span><input name="mg" type="text" inputmode="decimal" maxlength="10" placeholder="Ejemplo: 500" autocomplete="off"></label>' +
       '<label class="fld"><span>¿Cada cuánto la tomas?</span><select name="every"><option value="1">Todos los días</option><option value="2">Un día sí y un día no</option><option value="3">Cada 3 días</option><option value="7">Una vez por semana</option><option value="otro">Otra frecuencia…</option></select></label>' +
@@ -180,7 +181,8 @@
   function viewSet() {
     const forms = state.treatments.map((t) => {
       const i = info(t, today());
-      return '<section class="card set" id="set-' + t.id + '" style="--c:' + t.color + '"><h2>' + esc(label(t)) + '</h2>' +
+      return '<section class="card set" id="set-' + t.id + '" style="--c:' + t.color + '">' + (t.title ? '<p class="ttl">' + esc(t.title) + '</p>' : '') + '<h2>' + esc(label(t)) + '</h2>' +
+        field(t, 'title', 'Encabezado (opcional)', 'text', 'maxlength="40" placeholder="Ejemplo: Tratamiento de la presión"') +
         field(t, 'name', 'Nombre de la pastilla', 'text', 'maxlength="40" placeholder="Ejemplo: Amoxicilina"') +
         field(t, 'mg', 'Miligramos (mg)', 'text', 'inputmode="decimal" maxlength="10" placeholder="Ejemplo: 500"') +
         '<div class="two">' + field(t, 'every', 'Se toma cada (días)', 'number', 'min="1" max="30" inputmode="numeric"') + field(t, 'time', 'Hora del aviso', 'time') + '</div>' +
@@ -338,7 +340,7 @@
     const start = g('start'), time = g('time');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return err('Escribe el día en que empiezas.');
     if (!/^\d{2}:\d{2}$/.test(time)) return err('Escribe la hora del aviso.');
-    state.treatments.push({ id: 't' + Date.now().toString(36), name: name, mg: g('mg').replace(',', '.').replace(/[^0-9.]/g, '').slice(0, 10),
+    state.treatments.push({ id: 't' + Date.now().toString(36), title: g('title'), name: name, mg: g('mg').replace(',', '.').replace(/[^0-9.]/g, '').slice(0, 10),
       color: PALETTE[state.treatments.length % PALETTE.length], every: every, start: start, time: time, pills: pills, noStock: noStock, course: course, taken: {} });
     save(); setDraft(null); tab = 'hoy'; render(); window.scrollTo(0, 0);
   });
@@ -367,6 +369,7 @@
     else if (f === 'course') { v = v === '' ? null : Math.max(1, Math.floor(Number(v)) || 1); }
     else if (f === 'start' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { return; }
     else if (f === 'time' && !/^\d{2}:\d{2}$/.test(v)) { return; }
+    else if (f === 'title') { v = v.trim().slice(0, 40); }
     else if (f === 'name') { v = v.trim() || t.name; }
     else if (f === 'mg') { v = v.trim().replace(',', '.').replace(/[^0-9.]/g, '').slice(0, 10); }
     t[f] = v; save(); render();
