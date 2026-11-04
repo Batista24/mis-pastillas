@@ -49,7 +49,10 @@
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignorar */ } }
   state = load();
-  let tab = 'hoy';
+  const DRAFT = 'recordatorio.borrador';
+  const getDraft = () => { try { return JSON.parse(localStorage.getItem(DRAFT)); } catch (e) { return null; } };
+  const setDraft = (d) => { try { if (d) localStorage.setItem(DRAFT, JSON.stringify(d)); else localStorage.removeItem(DRAFT); } catch (e) { /* ignorar */ } };
+  let tab = getDraft() ? 'nueva' : 'hoy';
 
   /* ---------- cálculo de dosis ---------- */
   function doseDates(t, from, to) {
@@ -199,6 +202,11 @@
   function render() {
     const app = document.getElementById('app');
     app.innerHTML = tab === 'hoy' ? viewHoy() : tab === 'cal' ? viewCal() : tab === 'nueva' ? viewNew() : viewSet();
+    if (tab === 'nueva') {
+      const d = getDraft(), f = document.getElementById('newform');
+      if (d && f) { Object.keys(d).forEach((k) => { const el = f.elements.namedItem(k); if (el) el.value = d[k]; });
+        document.getElementById('otroWrap').hidden = f.elements.namedItem('every').value !== 'otro'; }
+    }
     const items = [['hoy', 'Hoy', '◉'], ['cal', 'Calendario', '▦'], ['set', 'Ajustes', '⚙']];
     document.getElementById('nav').innerHTML = items.map((x) =>
       '<button data-act="tab" data-tab="' + x[0] + '"' + (tab === x[0] ? ' aria-current="page" class="on"' : '') + '><span aria-hidden="true">' + x[2] + '</span>' + x[1] + '</button>').join('');
@@ -270,7 +278,7 @@
   const actions = {
     tab(el) { tab = el.dataset.tab; render(); window.scrollTo(0, 0); },
     add() { tab = 'nueva'; render(); window.scrollTo(0, 0); },
-    cancelNew() { tab = 'hoy'; render(); window.scrollTo(0, 0); },
+    cancelNew() { setDraft(null); tab = 'hoy'; render(); window.scrollTo(0, 0); },
     remove(el) {
       const t = T(el.dataset.id);
       if (!confirm('¿Quitar "' + label(t) + '" de la app? Se borra también lo que marcaste.')) return;
@@ -307,7 +315,11 @@
     const el = e.target.closest('[data-act]');
     if (el && actions[el.dataset.act] && !el.disabled) actions[el.dataset.act](el);
   });
-  document.addEventListener('input', (e) => { const m = document.getElementById('formerr'); if (m && e.target.form && e.target.form.id === 'newform') m.textContent = ''; });
+  document.addEventListener('input', (e) => {
+    if (e.target.form && e.target.form.id === 'newform') {
+      const d = {}; Array.prototype.forEach.call(e.target.form.elements, (el) => { if (el.name) d[el.name] = el.value; }); setDraft(d);
+    }
+    const m = document.getElementById('formerr'); if (m && e.target.form && e.target.form.id === 'newform') m.textContent = ''; });
   document.addEventListener('submit', (e) => {
     if (e.target.id !== 'newform') return;
     e.preventDefault();
@@ -325,7 +337,7 @@
     if (!/^\d{2}:\d{2}$/.test(time)) return err('Escribe la hora del aviso.');
     state.treatments.push({ id: 't' + Date.now().toString(36), name: name, mg: g('mg').replace(',', '.').replace(/[^0-9.]/g, '').slice(0, 10),
       color: PALETTE[state.treatments.length % PALETTE.length], every: every, start: start, time: time, pills: pills, noStock: noStock, course: course, taken: {} });
-    save(); tab = 'hoy'; render(); window.scrollTo(0, 0);
+    save(); setDraft(null); tab = 'hoy'; render(); window.scrollTo(0, 0);
   });
   document.addEventListener('change', (e) => {
     if (e.target.name === 'every' && e.target.form && e.target.form.id === 'newform') {
