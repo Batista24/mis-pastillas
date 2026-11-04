@@ -93,3 +93,5 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
 @media (max-width: 380px) { body { font-size: 17px; } .two { grid-template-columns: 1fr; } .day { grid-template-columns: 76px 1fr; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+.btn.link.inline { min-height: 32px; padding: 0 2px; font-size: .95rem; font-weight: 600; vertical-align: baseline; color: var(--blue); }

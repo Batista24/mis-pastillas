@@ -27,6 +27,8 @@
   const shortDate = (s) => { const d = parse(s); return DOW[d.getDay()].slice(0, 3) + ' ' + d.getDate() + ' ' + MON[d.getMonth()].slice(0, 3); };
   const time12 = (t) => { const p = t.split(':').map(Number); return (p[0] % 12 || 12) + ':' + pad(p[1]) + ' ' + (p[0] >= 12 ? 'p. m.' : 'a. m.'); };
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const label = (t) => t.name + (t.mg ? ' ' + t.mg + ' mg' : '');
+  const freq = (t) => (Number(t.every) === 1 ? 'Una pastilla cada día' : 'Una pastilla cada ' + t.every + ' días') + (t.course ? ' · ' + t.course + ' dosis' : '');
   const plural = (n, a, b) => n + ' ' + (n === 1 ? a : b);
 
   /* ---------- datos ---------- */
@@ -35,8 +37,8 @@
     return {
       v: 1, notify: false, tab: 'hoy',
       treatments: [
-        { id: 'a', name: 'Pastilla un día sí y un día no', color: '#d9480f', every: 2, start: td, time: '20:00', pills: 10, course: null, taken: {} },
-        { id: 'b', name: 'Pastilla diaria (10 días)', color: '#2756c5', every: 1, start: td, time: '20:00', pills: 10, course: 10, taken: {} }
+        { id: 'a', name: 'Pastilla 1', mg: '', color: '#d9480f', every: 2, start: td, time: '20:00', pills: 10, course: null, taken: {} },
+        { id: 'b', name: 'Pastilla 2', mg: '', color: '#2756c5', every: 1, start: td, time: '20:00', pills: 10, course: 10, taken: {} }
       ]
     };
   }
@@ -119,7 +121,7 @@
     if (i.lastCovered && !i.finished) lasts = '<p class="meta">Te alcanzan hasta el <strong>' + longDate(i.lastCovered) + '</strong>.</p>';
     const prog = t.course ? '<p class="meta">Dosis tomadas: <strong>' + i.takenN + ' de ' + t.course + '</strong></p>' : '';
     const alert = i.refill && !i.finished ? '<div class="buy"><b>Comprar más</b><p>' + esc(refillText(t, i)) + '</p></div>' : '';
-    return '<section class="card" style="--c:' + t.color + '"><div class="card-top"><div><h2>' + esc(t.name) + '</h2>' + main + nextLine + lasts + prog + '</div>' + stock + '</div>' + action + over + alert + '</section>';
+    return '<section class="card" style="--c:' + t.color + '"><div class="card-top"><div><h2>' + esc(label(t)) + '</h2><p class="meta">' + freq(t) + ' · <button class="btn link inline" data-act="edit" data-id="' + t.id + '">Editar nombre y mg</button></p>' + main + nextLine + lasts + prog + '</div>' + stock + '</div>' + action + over + alert + '</section>';
   }
   function viewHoy() {
     const n = now(), td = ymd(n);
@@ -143,8 +145,8 @@
         const noPill = !taken && k >= 0 && x.i.covered.indexOf(d) < 0;
         const can = k <= 0;
         const cls = 'chip' + (taken ? ' taken' : '') + (noPill ? ' nopill' : '') + (k < 0 && !taken ? ' missed' : '');
-        const label = esc(x.t.name) + (taken ? ' · tomada' : noPill ? ' · sin pastilla' : k < 0 ? ' · sin marcar' : '');
-        return '<button class="' + cls + '" style="--c:' + x.t.color + '"' + (can ? ' data-act="toggle" data-id="' + x.t.id + '" data-date="' + d + '"' : ' disabled') + '><i></i>' + label + '</button>';
+        const lab = esc(label(x.t)) + (taken ? ' · tomada' : noPill ? ' · sin pastilla' : k < 0 ? ' · sin marcar' : '');
+        return '<button class="' + cls + '" style="--c:' + x.t.color + '"' + (can ? ' data-act="toggle" data-id="' + x.t.id + '" data-date="' + d + '"' : ' disabled') + '><i></i>' + lab + '</button>';
       }).join('');
       rows += '<div class="day' + (k === 0 ? ' is-today' : '') + (!chips ? ' empty' : '') + '"><div class="dl"><b>' + (k === 0 ? 'Hoy' : shortDate(d)) + '</b>' + (k === 0 ? '<span>' + shortDate(d) + '</span>' : '') + '</div><div class="dc">' + (chips || '<span class="rest">Sin pastilla</span>') + '</div></div>';
     }
@@ -157,8 +159,9 @@
   function viewSet() {
     const forms = state.treatments.map((t) => {
       const i = info(t, today());
-      return '<section class="card set" style="--c:' + t.color + '"><h2>' + esc(t.name) + '</h2>' +
-        field(t, 'name', 'Nombre', 'text', 'maxlength="40"') +
+      return '<section class="card set" id="set-' + t.id + '" style="--c:' + t.color + '"><h2>' + esc(label(t)) + '</h2>' +
+        field(t, 'name', 'Nombre de la pastilla', 'text', 'maxlength="40" placeholder="Ejemplo: Amoxicilina"') +
+        field(t, 'mg', 'Miligramos (mg)', 'text', 'inputmode="decimal" maxlength="10" placeholder="Ejemplo: 500"') +
         '<div class="two">' + field(t, 'every', 'Se toma cada (días)', 'number', 'min="1" max="30" inputmode="numeric"') + field(t, 'time', 'Hora del aviso', 'time') + '</div>' +
         field(t, 'start', 'Primer día del tratamiento', 'date') +
         field(t, 'course', 'Termina después de (dosis). Vacío = sin final', 'number', 'min="1" max="400" inputmode="numeric"') +
@@ -201,10 +204,10 @@
     };
     state.treatments.forEach((t) => {
       const i = info(t, td);
-      i.covered.forEach((d) => ev('dosis-' + t.id + '-' + d, d, t.time, 15, '💊 ' + t.name, 'Toma tu pastilla y márcala en la app Mis pastillas.'));
+      i.covered.forEach((d) => ev('dosis-' + t.id + '-' + d, d, t.time, 15, '💊 ' + label(t), 'Toma tu pastilla y márcala en la app Mis pastillas.'));
       if (i.firstUncovered && (!t.course || i.refill)) { // aviso de recompra 3 días antes de la primera dosis sin pastilla
         let rd = add(i.firstUncovered, -3); if (rd < td) rd = td;
-        ev('compra-' + t.id + '-' + i.firstUncovered, rd, '09:00', 30, '🛒 Comprar pastillas: ' + t.name,
+        ev('compra-' + t.id + '-' + i.firstUncovered, rd, '09:00', 30, '🛒 Comprar pastillas: ' + label(t),
           'Tus pastillas alcanzan hasta antes del ' + longDate(i.firstUncovered) + '. Compra más y márcalo en la app.');
       }
     });
@@ -239,7 +242,7 @@
       if (mins >= 0 && c < 3 && mins >= c * 30) {
         noteLog[k] = c + 1;
         try { localStorage.setItem(NOTE_KEY, JSON.stringify(noteLog)); } catch (e) { /* ignorar */ }
-        showNote('💊 Hora de tu pastilla', t.name, k);
+        showNote('💊 Hora de tu pastilla', label(t), k);
       }
     });
   }
@@ -248,6 +251,11 @@
   const T = (id) => state.treatments.find((t) => t.id === id);
   const actions = {
     tab(el) { tab = el.dataset.tab; render(); window.scrollTo(0, 0); },
+    edit(el) {
+      tab = 'set'; render();
+      const sec = document.getElementById('set-' + el.dataset.id);
+      if (sec) { sec.scrollIntoView(); const i = sec.querySelector('input[data-f=name]'); if (i) i.focus(); }
+    },
     take(el) { T(el.dataset.id).taken[el.dataset.date] = Date.now(); save(); render(); },
     untake(el) { delete T(el.dataset.id).taken[el.dataset.date]; save(); render(); },
     toggle(el) { const t = T(el.dataset.id), d = el.dataset.date; if (t.taken[d]) delete t.taken[d]; else t.taken[d] = Date.now(); save(); render(); },
@@ -257,7 +265,7 @@
     },
     reset(el) {
       const t = T(el.dataset.id);
-      if (!confirm('¿Borrar las pastillas marcadas de "' + t.name + '" y empezar de nuevo desde hoy?')) return;
+      if (!confirm('¿Borrar las pastillas marcadas de "' + label(t) + '" y empezar de nuevo desde hoy?')) return;
       t.taken = {}; t.start = today(); save(); render();
     },
     ics() { download('mis-pastillas.ics', buildICS(), 'text/calendar'); },
@@ -297,6 +305,7 @@
     else if (f === 'start' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { return; }
     else if (f === 'time' && !/^\d{2}:\d{2}$/.test(v)) { return; }
     else if (f === 'name') { v = v.trim() || t.name; }
+    else if (f === 'mg') { v = v.trim().replace(',', '.').replace(/[^0-9.]/g, '').slice(0, 10); }
     t[f] = v; save(); render();
   });
 
