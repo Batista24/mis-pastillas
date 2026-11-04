@@ -168,7 +168,7 @@
       '<label class="fld"><span>¿Cada cuánto la tomas?</span><select name="every"><option value="1">Todos los días</option><option value="2">Un día sí y un día no</option><option value="3">Cada 3 días</option><option value="7">Una vez por semana</option><option value="otro">Otra frecuencia…</option></select></label>' +
       '<label class="fld" id="otroWrap" hidden><span>Escribe cada cuántos días la tomas</span><input name="otro" type="number" min="1" max="30" inputmode="numeric"></label>' +
       '<label class="fld"><span>¿Cuántas pastillas tienes ahora? (opcional)</span><input name="pills" type="number" min="1" max="999" inputmode="numeric" placeholder="Ejemplo: 10"><small class="fine">Si lo dejas vacío, no llevo el conteo ni te aviso cuándo comprar.</small></label>' +
-      '<label class="fld"><span>¿Cuántas veces en total la vas a tomar? (opcional)</span><input name="course" type="number" min="1" max="400" inputmode="numeric" placeholder="Vacío si no tiene final"><small class="fine">Si es por 10 días y una cada día, escribe 10. Si no sabes cuándo termina, déjalo vacío.</small></label>' +
+      '<label class="fld"><span>¿Cuánto dura el tratamiento? (opcional)</span><div class="two"><input name="dur" type="number" min="1" max="60" inputmode="numeric" placeholder="Ejemplo: 5"><select name="unit"><option value="30">meses</option><option value="7">semanas</option><option value="1">días</option></select></div><small class="fine">Si el doctor dijo "por 5 meses", escribe 5 y elige meses. Si no sabes, déjalo vacío.</small></label>' +
       '<label class="fld"><span>¿Qué día empiezas?</span><input name="start" type="date" value="' + today() + '"></label>' +
       '<label class="fld"><span>¿A qué hora te aviso?</span><input name="time" type="time" value="20:00"></label>' +
       '<p class="error" id="formerr" role="alert"></p>' +
@@ -183,7 +183,7 @@
         field(t, 'mg', 'Miligramos (mg)', 'text', 'inputmode="decimal" maxlength="10" placeholder="Ejemplo: 500"') +
         '<div class="two">' + field(t, 'every', 'Se toma cada (días)', 'number', 'min="1" max="30" inputmode="numeric"') + field(t, 'time', 'Hora del aviso', 'time') + '</div>' +
         field(t, 'start', 'Primer día del tratamiento', 'date') +
-        field(t, 'course', 'Termina después de (dosis). Vacío = sin final', 'number', 'min="1" max="400" inputmode="numeric"') +
+        field(t, 'course', 'Cuántas veces en total la vas a tomar (vacío = sin final)', 'number', 'min="1" max="400" inputmode="numeric"') +
         field(t, 'pills', 'Pastillas compradas en total (vacío = no llevar conteo)', 'number', 'min="0" max="999" inputmode="numeric"') +
         '<p class="fine">' + (t.noStock ? 'No llevas el conteo de pastillas.' : 'Ahora te quedan <strong>' + i.left + '</strong>.') + '</p>' +
         '<div class="refill"><label class="fld"><span>Compré más pastillas</span><input id="add-' + t.id + '" type="number" min="1" max="999" value="10" inputmode="numeric"></label><button class="btn small" data-act="refill" data-id="' + t.id + '">Agregar</button></div>' +
@@ -330,8 +330,9 @@
     if (!(every >= 1 && every <= 30)) return err('Escribe cada cuántos días la tomas (de 1 a 30).');
     const noStock = g('pills') === '';
     const pills = noStock ? 999 : Math.floor(Number(g('pills'))); if (!(pills >= 1)) return err('Revisa cuántas pastillas tienes.');
-    const course = g('course') === '' ? null : Math.floor(Number(g('course')));
-    if (course !== null && !(course >= 1)) return err('Revisa cuántas veces en total la vas a tomar.');
+    let course = null;
+    if (g('dur') !== '') { const dur = Math.floor(Number(g('dur'))); if (!(dur >= 1)) return err('Revisa cuánto dura el tratamiento.');
+      course = Math.max(1, Math.ceil(dur * Number(g('unit')) / every)); }
     const start = g('start'), time = g('time');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return err('Escribe el día en que empiezas.');
     if (!/^\d{2}:\d{2}$/.test(time)) return err('Escribe la hora del aviso.');
