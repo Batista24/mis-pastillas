@@ -45,7 +45,7 @@
   const PALETTE = ['#d9480f', '#2756c5', '#7b2cbf', '#0b7a75', '#b5179e', '#8a6d00'];
   function defaults() { return { v: 2, notify: false, treatments: [] }; }
   function migrate(st) { st.v = 2; return st; } // versión 1 -> 2: no se borra nada
-  let state;
+  let state, goToday = false;
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
@@ -160,7 +160,8 @@
     if (!state.treatments.length) return '<header class="head"><h1>Calendario</h1></header><section class="card"><p>Aquí verás los días que te toca cada pastilla. Primero agrega una en la pantalla <strong>Hoy</strong>.</p></section>';
     const infos = state.treatments.map((t) => ({ t: t, i: info(t, td) }));
     let rows = '';
-    for (let k = -3; k <= 27; k++) {
+    let back = 3; state.treatments.forEach((t) => { back = Math.max(back, Math.min(120, diff(t.start, td))); });
+    for (let k = -back; k <= 27; k++) {
       const d = add(td, k);
       const chips = infos.map((x) => doseKeys(x.t, d, d).map((key) => {
         const taken = !!x.t.taken[key];
@@ -172,7 +173,7 @@
       }).join('')).join('');
       rows += '<div class="day' + (k === 0 ? ' is-today' : '') + (!chips ? ' empty' : '') + '"><div class="dl"><b>' + (k === 0 ? 'Hoy' : shortDate(d)) + '</b>' + (k === 0 ? '<span>' + shortDate(d) + '</span>' : '') + '</div><div class="dc">' + (chips || '<span class="rest">Sin pastilla</span>') + '</div></div>';
     }
-    return '<header class="head"><h1>Calendario</h1><p class="fine">Toca una pastilla de hoy o de días pasados para marcarla como tomada.</p></header><div class="days">' + rows + '</div>';
+    return '<header class="head"><h1>Calendario</h1><p class="fine">Toca una pastilla de hoy o de días pasados para marcarla como tomada. Se ven los días desde que empezó cada tratamiento (hasta 120 días atrás).</p></header><div class="days">' + rows + '</div>';
   }
   function field(t, f, label, type, extra) {
     let v = t[f]; if (v === null || v === undefined) v = '';
@@ -238,6 +239,7 @@
   function render() {
     const app = document.getElementById('app');
     app.innerHTML = tab === 'hoy' ? viewHoy() : tab === 'cal' ? viewCal() : tab === 'nueva' ? viewNew() : viewSet();
+    if (tab === 'cal' && goToday) { goToday = false; const r = app.querySelector('.is-today'); if (r) r.scrollIntoView({ block: 'center' }); }
     if (tab === 'nueva') {
       const d = getDraft(), f = document.getElementById('newform');
       if (d && f) { Object.keys(d).forEach((k) => { const el = f.elements.namedItem(k); if (el) el.value = d[k]; });
@@ -315,7 +317,7 @@
   /* ---------- acciones ---------- */
   const T = (id) => state.treatments.find((t) => t.id === id);
   const actions = {
-    tab(el) { tab = el.dataset.tab; render(); window.scrollTo(0, 0); },
+    tab(el) { tab = el.dataset.tab; goToday = tab === 'cal'; render(); if (tab !== 'cal') window.scrollTo(0, 0); },
     add() { tab = 'nueva'; render(); window.scrollTo(0, 0); },
     cancelNew() { setDraft(null); tab = 'hoy'; render(); window.scrollTo(0, 0); },
     remove(el) {
