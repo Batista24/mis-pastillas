@@ -216,6 +216,7 @@
         '<label class="fld"><span>¿Cómo se toma? (opcional)</span><input type="text" maxlength="40" list="how-list" data-f="how" data-id="' + t.id + '" value="' + esc(t.how || '') + '" placeholder="Toca y elige, o escribe lo tuyo" autocomplete="off">' + howList() + '</label>' +
         field(t, 'pills', 'Pastillas compradas en total (vacío = no llevar conteo)', 'number', 'min="0" max="999" inputmode="numeric"') +
         '<p class="fine">' + (t.noStock ? 'No llevas el conteo de pastillas.' : 'Ahora te quedan <strong>' + i.left + '</strong>.') + '</p>' +
+        (t.noStock ? '' : '<div class="refill"><label class="fld"><span>Corregir: cuántas pastillas tengo ahora, contándolas en mano</span><input id="fix-' + t.id + '" type="number" min="0" max="999" placeholder="Ejemplo: 5" inputmode="numeric"></label><button class="btn small" data-act="fix" data-id="' + t.id + '">Corregir</button></div><p class="fine">La app solo resta una pastilla cuando tocas «Ya la tomé». Si tomaste una y no la marcaste, el conteo queda de más. Cuenta las que tienes y corrige aquí.</p>') +
         '<div class="refill"><label class="fld"><span>Compré más pastillas</span><input id="add-' + t.id + '" type="number" min="1" max="999" value="10" inputmode="numeric"></label><button class="btn small" data-act="refill" data-id="' + t.id + '">Agregar</button></div>' +
         '<button class="btn link danger" data-act="reset" data-id="' + t.id + '">Borrar lo marcado y empezar de nuevo</button>' +
         '<button class="btn link danger" data-act="remove" data-id="' + t.id + '">Quitar esta pastilla</button></section>';
@@ -330,6 +331,11 @@
     take(el) { T(el.dataset.id).taken[el.dataset.date] = Date.now(); save(); render(); },
     untake(el) { delete T(el.dataset.id).taken[el.dataset.date]; save(); render(); },
     toggle(el) { const t = T(el.dataset.id), d = el.dataset.date; if (t.taken[d]) delete t.taken[d]; else t.taken[d] = Date.now(); save(); render(); },
+    fix(el) {
+      const t = T(el.dataset.id), v = document.getElementById('fix-' + t.id).value;
+      if (v === '' || !(Number(v) >= 0)) return;
+      t.pills = Object.keys(t.taken).length + Math.floor(Number(v)); save(); render();
+    },
     refill(el) {
       const t = T(el.dataset.id), n = Math.floor(Number(document.getElementById('add-' + t.id).value));
       if (n > 0) { t.pills = (Number(t.pills) || 0) + n; save(); render(); }
@@ -354,6 +360,11 @@
     if (el && actions[el.dataset.act] && !el.disabled) actions[el.dataset.act](el);
   });
   document.addEventListener('input', (e) => {
+    { const el = e.target, f = el.dataset && el.dataset.f;
+      if (el.dataset && el.dataset.id && (f === 'name' || f === 'title' || f === 'how')) {
+        const t = T(el.dataset.id), v = el.value.trim().slice(0, 40);
+        if (t && (f !== 'name' || v)) { t[f] = v; save(); }
+      } }
     if (e.target.form && e.target.form.id === 'newform') {
       const d = {}; Array.prototype.forEach.call(e.target.form.elements, (el) => { if (el.name) d[el.name] = el.value; }); setDraft(d);
     }
