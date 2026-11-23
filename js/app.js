@@ -63,11 +63,13 @@
   /* ---------- cálculo de dosis ---------- */
   function doseDates(t, from, to) {
     const out = [], n = Math.max(1, Math.floor(t.every) || 1);
+    // una toma extra cuenta como una de las del tratamiento: la última se quita
+    const lim = t.course ? Math.max(0, t.course - Object.keys(t.taken).filter((k) => k.slice(-2) === '+x').length) : 0;
     let k0 = 0;
     const d0 = diff(t.start, from);
     if (d0 > 0) k0 = Math.ceil(d0 / n);
     for (let k = k0; k < k0 + 2000; k++) {
-      if (t.course && k >= t.course) break;
+      if (t.course && k >= lim) break;
       const date = add(t.start, k * n);
       if (date > to) break;
       out.push(date);
