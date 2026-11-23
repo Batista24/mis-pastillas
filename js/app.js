@@ -163,14 +163,18 @@
     let back = 3; state.treatments.forEach((t) => { back = Math.max(back, Math.min(120, diff(t.start, td))); });
     for (let k = -back; k <= 27; k++) {
       const d = add(td, k);
-      const chips = infos.map((x) => doseKeys(x.t, d, d).map((key) => {
+      const chips = infos.map((x) => { const ks = doseKeys(x.t, d, d); const h = ks.map((key) => {
         const taken = !!x.t.taken[key];
         const noPill = !taken && k >= 0 && x.i.covered.indexOf(key) < 0;
         const can = k <= 0;
         const cls = 'chip' + (taken ? ' taken' : '') + (noPill ? ' nopill' : '') + (k < 0 && !taken ? ' missed' : '');
         const lab = esc(label(x.t)) + (timesOf(x.t).length > 1 ? ' · ' + time12(timeOfKey(x.t, key)) : '') + (taken ? ' · tomada' : noPill ? ' · sin pastilla' : k < 0 ? ' · sin marcar' : '');
         return '<button class="' + cls + '" style="--c:' + x.t.color + '"' + (can ? ' data-act="toggle" data-id="' + x.t.id + '" data-date="' + key + '"' : ' disabled') + '><i></i>' + lab + '</button>';
-      }).join('')).join('');
+      }).join('');
+        const e = d + '+x', nm = esc(label(x.t));
+        if (x.t.taken[e]) return h + '<button class="chip taken" style="--c:' + x.t.color + '" data-act="toggle" data-id="' + x.t.id + '" data-date="' + e + '"><i></i>' + nm + ' · toma extra (tomada)</button>';
+        if (!ks.length && k <= 0 && d >= x.t.start) return h + '<button class="chip extra" style="--c:' + x.t.color + '" data-act="toggle" data-id="' + x.t.id + '" data-date="' + e + '"><i></i>＋ Marcar toma extra: ' + nm + '</button>';
+        return h; }).join('');
       rows += '<div class="day' + (k === 0 ? ' is-today' : '') + (!chips ? ' empty' : '') + '"><div class="dl"><b>' + (k === 0 ? 'Hoy' : shortDate(d)) + '</b>' + (k === 0 ? '<span>' + shortDate(d) + '</span>' : '') + '</div><div class="dc">' + (chips || '<span class="rest">Sin pastilla</span>') + '</div></div>';
     }
     return '<header class="head"><h1>Calendario</h1><p class="fine">Toca una pastilla de hoy o de días pasados para marcarla como tomada. Se ven los días desde que empezó cada tratamiento (hasta 120 días atrás).</p></header><div class="days">' + rows + '</div>';
